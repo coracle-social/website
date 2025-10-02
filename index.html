@@ -3,7 +3,7 @@
   <head>
     <title>BitcoinWalk</title>
     <link rel="icon" type="image/png" href="/assets/logo.png">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nonboard@1.0.5/dist/index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nonboard@1.0.7/dist/index.css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
       :root {
@@ -85,9 +85,13 @@
     </div>
 
     <script type="module">
-      import nb from 'https://cdn.jsdelivr.net/npm/nonboard@1.0.5/+esm'
+      import nb from 'https://cdn.jsdelivr.net/npm/nonboard@1.0.7/+esm'
+      import * as net from 'https://cdn.jsdelivr.net/npm/@welshman/net@latest/+esm'
+      import * as signer from 'https://cdn.jsdelivr.net/npm/@welshman/signer@latest/+esm'
+      import * as util from 'https://cdn.jsdelivr.net/npm/@welshman/util@latest/+esm'
 
       let currentUser = null;
+      let hasInboxRelays = false;
       const submitUrl = 'https://metamanager.bitcoinwalk.org/apply'
       const submitBtn = document.getElementById('submitBtn');
       const nostrLoginBtn = document.getElementById('nostrLoginBtn');
@@ -96,22 +100,76 @@
       const loginButton = document.getElementById('loginButton');
       const userProfile = document.getElementById('userProfile');
 
+      const INDEXER_RELAYS = [
+        'wss://purplepag.es/',
+        'wss://relay.damus.io/',
+        'wss://relay.nostr.band/',
+        'wss://indexer.coracle.social/',
+      ]
+
       document.getElementById('pubkey').setCustomValidity('Please log in with your Nostr account first.');
 
       const app = nb({
         appUrl: window.origin,
         appName: "Bitcoin Walk",
         appImage: "https://hbr.coracle.social/595c5702f0e17714f91cf19d0c00c6323270332489fe431839e6730ab5b91ba3.jpg",
-        onSignup: payload => handleAuth(payload),
-        onLogin: payload => handleAuth(payload),
+        onSignup: payload => handleAuth('signup', payload),
+        onLogin: payload => handleAuth('login', payload),
         onError: error => console.log("received error:", error),
         onInfo: message => console.log("received info:", message),
       })
 
-      function handleAuth(payload) {
+      async function handleAuth(type, payload) {
         currentUser = payload;
+
+        // If they signed up, go ahead and create inbox relays. Otherwise, we should ask permission.
+        if (type === "signup") {
+          await setupInbox()
+        } else {
+          const events = await net.load({
+            relays: INDEXER_RELAYS,
+            filters: [{
+              kinds: [util.INBOX_RELAYS],
+              authors: [payload.pubkey],
+            }],
+          })
+
+          hasInboxRelays = events.length > 0
+        }
+
         showUserProfile(payload);
         closeNostrModal();
+      }
+
+      function getSigner() {
+        switch (currentUser.method) {
+          case "nip01": return signer.Nip01Signer.fromSecret(currentUser.nip01.secret)
+          case "nip07": return signer.Nip07Signer()
+          case "nip46": return signer.Nip46Signer(
+            new signer.Nip46Broker({
+              relays: currentUser.nip46.relays,
+              clientSecret: currentUser.nip46.clientSecret,
+              signerPubkey: currentUser.nip46.signerPubkey,
+            })
+          )
+        }
+      }
+
+      async function setupInbox() {
+        const signer = getSigner()
+        const template = util.makeEvent(util.INBOX_RELAYS, {
+          tags: [
+            ["relay", 'wss://auth.nostr1.com/'],
+            ["relay", 'wss://inbox.nostr.wine/'],
+          ],
+        })
+
+        await net.publish({
+          relays: INDEXER_RELAYS,
+          event: await signer.sign(template),
+        })
+
+        hasInboxRelays = true
       }
 
       function showUserProfile({pubkey, events}) {
@@ -157,6 +215,14 @@
 
       document.getElementById('signupForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        if (!hasInboxRelays) {
+          if (confirm("You don't currently have any relays set up for receiving direct messages. Please confirm that you'd like us to set some up for you.")) {
+            await setupInbox()
+          } else {
+            return
+          }
+        }
 
         const formData = {
           pubkey: document.getElementById('pubkey').value,
