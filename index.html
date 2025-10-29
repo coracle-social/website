@@ -36,9 +36,8 @@
             </label>
             <div id="nostrField">
               <div id="loginButton" class="w-full">
-                <button type="button" id="nostrLoginBtn" class="nb-button w-full">
-                  <img src="/assets/login.svg" class="w-5 h-5 mr-2" alt="Login icon">
-                  Log in with Nostr
+                <button type="button" id="nostrLoginBtn" class="nb-button w-full opacity-50 !cursor-progress" disabled>
+                  <span id="loginButtonText">Loading...</span>
                 </button>
               </div>
               <div id="userProfile" class="hidden flex items-center p-3 rounded-lg bg-[var(--nb-primary)]">
@@ -118,6 +117,14 @@
         onError: error => console.log("received error:", error),
         onInfo: message => console.log("received info:", message),
       })
+
+      // Enable the login button now that nonboard is loaded
+      nostrLoginBtn.disabled = false;
+      nostrLoginBtn.classList.remove('opacity-50', '!cursor-progress');
+      document.getElementById('loginButtonText').innerHTML = `
+        <img src="/assets/login.svg" class="w-5 h-5 mr-2 inline" alt="Login icon">
+        Log in with Nostr
+      `;
 
       async function handleAuth(type, payload) {
         currentUser = payload;
