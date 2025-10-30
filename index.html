@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>BitcoinWalk</title>
+    <title>Coracle Hosting</title>
     <link rel="icon" type="image/png" href="/assets/logo.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nonboard@1.0.7/dist/index.css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <style>
       :root {
-        --nb-primary: #f7931a;
-        --nb-primary-alt: #ed8b15;
+        --nb-primary: #FC560E;
+        --nb-primary-alt: #F25612;
         --nb-primary-content: #ffffff;
       }
     </style>
@@ -17,18 +17,9 @@
     <div class="max-w-md mx-auto pt-12 px-4">
       <div class="bg-white rounded-lg p-8">
         <div class="text-center mb-8">
-          <h1 class="text-3xl font-bold text-gray-900 mb-2">BitcoinWalk</h1>
-          <h2 class="text-xl text-gray-600">Start a Meetup</h2>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Coracle Hosting</h1>
+          <h2 class="text-xl text-gray-600">Create a Community Space</h2>
         </div>
-
-        <div class="mb-6 p-4 bg-amber-50 rounded-lg">
-          <p class="text-sm text-amber-800">
-            <strong>Note:</strong> Before you submit your application, please check
-            our <a class="underline decoration-solid" href="https://bitcoinwalk.org/join-bitcoinwalk/" target="_blank">list of existing locations</a> to
-            see whether there is already a BitcoinWalk established in your area.
-          </p>
-        </div>
-
         <form id="signupForm" action="/application/create/" method="POST" class="space-y-6">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -53,20 +44,16 @@
 
           <div>
             <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
-              Meetup Name (City)
+              Space Name
             </label>
-            <input type="text" id="name" name="name" required placeholder="e.g., San Francisco" class="nb-input w-full">
+            <input type="text" id="name" name="name" required placeholder="e.g., Bluegrass Mania" class="nb-input w-full">
           </div>
-
-          <div>
-            <label for="location" class="block text-sm font-medium text-gray-700 mb-2">
-              Google Maps Link
-            </label>
-            <input type="url" id="location" name="location" required placeholder="https://maps.google.com/..." class="nb-input w-full">
-            <p class="mt-1 text-xs text-gray-500">Paste the Google Maps link to your meetup location</p>
-          </div>
+          <p class="text-xs opacity-75">
+            Spaces are billed at the rate of 10k sats/mo, with a two-week free trial. By clicking below you agree to
+            our <a target="_blank" class="link text-[#FC560E]" href="https://flotilla.social/terms">terms of service</a>.
+          </p>
           <button type="submit" id="submitBtn" class="nb-button nb-button-primary w-full">
-            Start a Bitcoin Walk!
+            Create a Space!
           </button>
         </form>
       </div>
@@ -91,8 +78,7 @@
 
       let currentUser = null;
       let hasInboxRelays = false;
-      //  const submitUrl = 'https://metamanager.bitcoinwalk.org/apply'
-      const submitUrl = 'http://localhost:7532/apply'
+      const submitUrl = 'https://metamanager.coracle.social/apply'
       const submitBtn = document.getElementById('submitBtn');
       const nostrLoginBtn = document.getElementById('nostrLoginBtn');
       const nostrModal = document.getElementById('nostrModal');
@@ -111,8 +97,8 @@
 
       const app = nb({
         appUrl: window.origin,
-        appName: "Bitcoin Walk",
-        appImage: "https://hbr.coracle.social/595c5702f0e17714f91cf19d0c00c6323270332489fe431839e6730ab5b91ba3.jpg",
+        appName: "Coracle Hosting",
+        appImage: "https://coracle-media.us-southeast-1.linodeobjects.com/logomark-light.png",
         onSignup: payload => handleAuth('signup', payload),
         onLogin: payload => handleAuth('login', payload),
         onError: error => console.log("received error:", error),
@@ -244,9 +230,7 @@
             body: JSON.stringify({
               name: document.getElementById('name').value,
               pubkey: document.getElementById('pubkey').value,
-              metadata: {
-                location: document.getElementById('location').value
-              },
+              metadata: {},
             })
           });
 
@@ -259,7 +243,7 @@
           console.error('Error submitting form:', error);
           alert('There was an error submitting your application. Please try again.');
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Start a Bitcoin Walk!';
+          submitBtn.textContent = 'Create your Space!';
         }
       });
     </script>
