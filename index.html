@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Coracle Hosting</title>
+    <title>Hosting by Coracle</title>
     <link rel="icon" type="image/png" href="/assets/logo.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nonboard@1.0.7/dist/index.css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -17,7 +17,7 @@
     <div class="max-w-md mx-auto pt-12 px-4">
       <div class="bg-white rounded-lg p-8">
         <div class="text-center mb-8">
-          <h1 class="text-3xl font-bold text-gray-900 mb-2">Coracle Hosting</h1>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Hosting by Coracle</h1>
           <h2 class="text-xl text-gray-600">Create a Community Space</h2>
         </div>
         <form id="signupForm" action="/application/create/" method="POST" class="space-y-6">
@@ -31,7 +31,7 @@
                   <span id="loginButtonText">Loading...</span>
                 </button>
               </div>
-              <div id="userProfile" class="hidden flex items-center p-3 rounded-lg bg-[var(--nb-primary)]">
+              <div id="userProfile" class="hidden flex items-center p-3 rounded-lg bg-[var(--nb-primary)] text-[var(--nb-primary-content)]">
                 <img id="avatar" class="w-10 h-10 rounded-full mr-3" src="" alt="User avatar">
                 <div class="flex-1">
                   <p class="text-sm opacity-75">Logged in as:</p>
@@ -47,6 +47,20 @@
               Space Name
             </label>
             <input type="text" id="name" name="name" required placeholder="e.g., Bluegrass Mania" class="nb-input w-full">
+          </div>
+          <div>
+            <label for="description" class="block text-sm font-medium text-gray-700 mb-2">
+              Space Description
+            </label>
+            <textarea id="description" name="description" required placeholder="A community for bluegrass enthusiasts" class="nb-input w-full"></textarea>
+          </div>
+          <div>
+            <label for="image" class="block text-sm font-medium text-gray-700 mb-2">
+              Space Image
+            </label>
+            <div class="nb-input">
+              <input type="file" id="image" name="image" accept="image/png,image/jpg" class="w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-[#FC560E] file:text-white hover:file:bg-[#F25612] file:cursor-pointer">
+            </div>
           </div>
           <p class="text-xs opacity-75">
             Spaces are billed at the rate of 10k sats/mo, with a two-week free trial. By clicking below you agree to
@@ -75,10 +89,12 @@
       import * as net from 'https://cdn.jsdelivr.net/npm/@welshman/net@latest/+esm'
       import * as signer from 'https://cdn.jsdelivr.net/npm/@welshman/signer@latest/+esm'
       import * as util from 'https://cdn.jsdelivr.net/npm/@welshman/util@latest/+esm'
+      import * as lib from 'https://cdn.jsdelivr.net/npm/@welshman/lib@latest/+esm'
 
       let currentUser = null;
       let hasInboxRelays = false;
-      const submitUrl = 'https://metamanager.coracle.social/apply'
+      //  const submitUrl = 'https://metamanager.coracle.social/apply'
+      const submitUrl = 'http://localhost:7532/apply'
       const submitBtn = document.getElementById('submitBtn');
       const nostrLoginBtn = document.getElementById('nostrLoginBtn');
       const nostrModal = document.getElementById('nostrModal');
@@ -97,7 +113,7 @@
 
       const app = nb({
         appUrl: window.origin,
-        appName: "Coracle Hosting",
+        appName: "Hosting by Coracle",
         appImage: "https://coracle-media.us-southeast-1.linodeobjects.com/logomark-light.png",
         onSignup: payload => handleAuth('signup', payload),
         onLogin: payload => handleAuth('login', payload),
@@ -135,11 +151,11 @@
         closeNostrModal();
       }
 
-      function getSigner() {
+      const getSigner = lib.memoize(() => {
         switch (currentUser.method) {
           case "nip01": return signer.Nip01Signer.fromSecret(currentUser.nip01.secret)
-          case "nip07": return signer.Nip07Signer()
-          case "nip46": return signer.Nip46Signer(
+          case "nip07": return new signer.Nip07Signer()
+          case "nip46": return new signer.Nip46Signer(
             new signer.Nip46Broker({
               relays: currentUser.nip46.relays,
               clientSecret: currentUser.nip46.clientSecret,
@@ -147,7 +163,7 @@
             })
           )
         }
-      }
+      })
 
       async function setupInbox() {
         const signer = getSigner()
@@ -218,32 +234,56 @@
           }
         }
 
-        try {
-          submitBtn.disabled = true;
-          submitBtn.textContent = 'Submitting...';
+        const values = {
+          name: document.getElementById('name').value,
+          pubkey: document.getElementById('pubkey').value,
+          description: document.getElementById('description').value,
+          metadata: {},
+        }
 
-          const response = await fetch(submitUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              name: document.getElementById('name').value,
-              pubkey: document.getElementById('pubkey').value,
-              metadata: {},
-            })
-          });
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
 
-          if (response.ok) {
-            window.location.href = '/signup-complete.html';
-          } else {
-            throw new Error('Submission failed');
+        const server = "https://blossom.primal.net/"
+        const file = document.getElementById('image').files[0]
+
+        if (file) {
+          try {
+            const hashes = [await lib.sha256(await file.arrayBuffer())]
+            const authTemplate = util.makeBlossomAuthEvent({action: "upload", server, hashes})
+            const authEvent = await getSigner().sign(authTemplate)
+            const res = await util.uploadBlob(server, file, {authEvent})
+            const json = await res.json()
+
+            if (json.url) {
+              if (new URL(json.url).pathname.split(".").length === 1) {
+                json.url += ".png"
+              }
+
+              values.image = json.url
+            }
+
+          } catch (e) {
+            console.error(e)
           }
-        } catch (error) {
-          console.error('Error submitting form:', error);
-          alert('There was an error submitting your application. Please try again.');
+        }
+
+        const response = await fetch(submitUrl, {
+          method: 'POST',
+          body: JSON.stringify(values),
+          headers: {
+            'Content-Type': 'application/json'
+          },
+        })
+
+        const json = await response.json()
+
+        if (json.error) {
+          alert(`There was an error submitting your application: ${json.error}. Please try again.`);
           submitBtn.disabled = false;
           submitBtn.textContent = 'Create your Space!';
+        } else {
+          window.location.href = '/signup-complete.html';
         }
       });
     </script>
