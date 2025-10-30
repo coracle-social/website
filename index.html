@@ -174,8 +174,10 @@
           ],
         })
 
+        const relaysEvent = currentUser.events.find(lib.spec({kind: util.RELAYS}))
+
         await net.publish({
-          relays: INDEXER_RELAYS,
+          relays: relaysEvent ? util.getRelayTagValues(relaysEvent.tags) : INDEXER_RELAYS,
           event: await signer.sign(template),
         })
 
