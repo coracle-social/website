@@ -2,6 +2,7 @@
 <html>
   <head>
     <title>Hosting by Coracle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <link rel="icon" type="image/png" href="/assets/logo.png">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nonboard@1.0.7/dist/index.css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -14,8 +15,8 @@
     </style>
   </head>
   <body class="bg-gray-50 min-h-screen">
-    <div class="max-w-md mx-auto pt-12 px-4">
-      <div class="bg-white rounded-lg p-8">
+    <div class="max-w-xl mx-auto sm:py-12 sm:px-4">
+      <div class="bg-white sm:rounded-lg p-8">
         <div class="text-center mb-8">
           <h1 class="text-3xl font-bold text-gray-900 mb-2">Hosting by Coracle</h1>
           <h2 class="text-xl text-gray-600">Create a Community Space</h2>
@@ -248,7 +249,7 @@
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting...';
 
-        const server = "https://blossom.primal.net/"
+        const server = "https://blossom.primal.netx/"
         const file = document.getElementById('image').files[0]
 
         if (file) {
@@ -265,10 +266,12 @@
               }
 
               values.image = json.url
+            } else {
+              return alert(`Failed to upload image: ${res.headers.get('X-Reason')}`)
             }
-
           } catch (e) {
             console.error(e)
+            return alert(`Failed to upload image: ${String(e)}`)
           }
         }
 
