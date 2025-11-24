@@ -85,23 +85,53 @@
       </div>
     </div>
 
+    <div id="paymentModal" class="opacity-0 transition-all fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center z-50 pointer-events-none">
+      <div class="bg-white rounded-lg p-8 max-w-md mx-4 relative">
+        <div class="text-center">
+          <h3 class="text-2xl font-bold text-gray-900 mb-4">Payment Required</h3>
+          <p class="text-sm text-gray-600 mb-6">
+            Please pay the Lightning invoice below to complete your application.
+          </p>
+          <div class="mb-6 flex justify-center">
+            <canvas id="qrcode"></canvas>
+          </div>
+          <div class="mb-6 p-3 bg-gray-50 rounded break-all text-xs font-mono" id="invoiceText"></div>
+          <button id="copyInvoiceBtn" class="nb-button w-full mb-3">
+            Copy Invoice
+          </button>
+          <button id="confirmPaymentBtn" class="nb-button nb-button-primary w-full">
+            I've Paid
+          </button>
+          <p id="paymentError" class="text-xs text-red-600 mt-3 text-center hidden"></p>
+        </div>
+      </div>
+    </div>
+
     <script type="module">
       import nb from 'https://cdn.jsdelivr.net/npm/nonboard@1.0.7/+esm'
       import * as net from 'https://cdn.jsdelivr.net/npm/@welshman/net@latest/+esm'
       import * as signer from 'https://cdn.jsdelivr.net/npm/@welshman/signer@latest/+esm'
       import * as util from 'https://cdn.jsdelivr.net/npm/@welshman/util@latest/+esm'
       import * as lib from 'https://cdn.jsdelivr.net/npm/@welshman/lib@latest/+esm'
+      import QRCode from 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm'
 
       let currentUser = null;
       let hasInboxRelays = false;
-      const submitUrl = 'https://metamanager.coracle.social/apply'
-      //  const submitUrl = 'http://localhost:7532/apply'
+      let invoice = null;
+      const baseUrl = 'https://metamanager.coracle.social'
+      //  const baseUrl = 'http://localhost:7532'
+      const submitUrl = `${baseUrl}/apply`
+      const invoiceUrl = `${baseUrl}/invoice`
       const submitBtn = document.getElementById('submitBtn');
       const nostrLoginBtn = document.getElementById('nostrLoginBtn');
       const nostrModal = document.getElementById('nostrModal');
       const closeModal = document.getElementById('closeModal');
       const loginButton = document.getElementById('loginButton');
       const userProfile = document.getElementById('userProfile');
+      const paymentModal = document.getElementById('paymentModal');
+      const copyInvoiceBtn = document.getElementById('copyInvoiceBtn');
+      const confirmPaymentBtn = document.getElementById('confirmPaymentBtn');
+      const paymentError = document.getElementById('paymentError');
 
       const INDEXER_RELAYS = [
         'wss://purplepag.es/',
@@ -109,6 +139,22 @@
         'wss://relay.nostr.band/',
         'wss://indexer.coracle.social/',
       ]
+
+      // Fetch invoice on page load
+      async function fetchInvoice() {
+        try {
+          const response = await fetch(invoiceUrl);
+          const data = await response.json();
+          if (data.invoice) {
+            invoice = data.invoice;
+          }
+        } catch (e) {
+          console.error('Failed to fetch invoice:', e);
+        }
+      }
+
+      // Call on page load
+      fetchInvoice();
 
       document.getElementById('pubkey').setCustomValidity('Please log in with your Nostr account first.');
 
@@ -218,6 +264,84 @@
         nostrModal.classList.add('pointer-events-none');
       }
 
+      function showPaymentModal() {
+        // Generate QR code
+        const canvas = document.getElementById('qrcode');
+        QRCode.toCanvas(canvas, invoice.toUpperCase(), {
+          width: 256,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        }, (error) => {
+          if (error) console.error('Error generating QR code:', error);
+        });
+
+        // Display invoice text
+        document.getElementById('invoiceText').textContent = invoice;
+
+        // Show modal
+        paymentModal.classList.remove('opacity-0');
+        paymentModal.classList.remove('pointer-events-none');
+      }
+
+      function closePaymentModal() {
+        paymentModal.classList.add('opacity-0');
+        paymentModal.classList.add('pointer-events-none');
+      }
+
+      let pendingSubmitValues = null;
+
+      async function handlePaymentConfirmation() {
+        if (!pendingSubmitValues) return;
+
+        // Disable button and show loading state
+        confirmPaymentBtn.disabled = true;
+        confirmPaymentBtn.textContent = 'Verifying...';
+        paymentError.classList.add('hidden');
+
+        try {
+          const response = await fetch(submitUrl, {
+            method: 'POST',
+            body: JSON.stringify(pendingSubmitValues),
+            headers: {
+              'Content-Type': 'application/json'
+            },
+          });
+
+          const json = await response.json();
+
+          if (json.error) {
+            paymentError.textContent = `Payment not confirmed: ${json.error}. Please complete the payment and try again.`;
+            paymentError.classList.remove('hidden');
+            confirmPaymentBtn.disabled = false;
+            confirmPaymentBtn.textContent = "I've Paid";
+          } else {
+            window.location.href = '/signup-complete.html';
+
+          }
+        } catch (e) {
+          console.error('Submit error:', e);
+          paymentError.textContent = 'Network error. Please try again.';
+          paymentError.classList.remove('hidden');
+          confirmPaymentBtn.disabled = false;
+          confirmPaymentBtn.textContent = "I've Paid";
+        }
+      }
+
+      copyInvoiceBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(invoice).then(() => {
+          const originalText = copyInvoiceBtn.textContent;
+          copyInvoiceBtn.textContent = 'Copied!';
+          setTimeout(() => {
+            copyInvoiceBtn.textContent = originalText;
+          }, 2000);
+        });
+      });
+
+      confirmPaymentBtn.addEventListener('click', handlePaymentConfirmation);
+
       nostrLoginBtn.addEventListener('click', openNostrModal);
       closeModal.addEventListener('click', closeNostrModal);
       nostrModal.addEventListener('click', (e) => {
@@ -242,6 +366,7 @@
           pubkey: document.getElementById('pubkey').value,
           description: document.getElementById('description').value,
           metadata: {},
+          invoice,
         }
 
         values.schema = slugify(values.name)
@@ -267,30 +392,45 @@
 
               values.image = json.url
             } else {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Create a Space!';
               return alert(`Failed to upload image: ${res.headers.get('X-Reason')}`)
             }
           } catch (e) {
             console.error(e)
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create a Space!';
             return alert(`Failed to upload image: ${String(e)}`)
           }
         }
 
-        const response = await fetch(submitUrl, {
-          method: 'POST',
-          body: JSON.stringify(values),
-          headers: {
-            'Content-Type': 'application/json'
-          },
-        })
-
-        const json = await response.json()
-
-        if (json.error) {
-          alert(`There was an error submitting your application: ${json.error}. Please try again.`);
+        // Check if invoice exists
+        if (invoice) {
+          // Store values and show payment modal
+          pendingSubmitValues = values;
+          showPaymentModal();
+          // Reset button state
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Create your Space!';
+          submitBtn.textContent = 'Create a Space!';
         } else {
-          window.location.href = '/signup-complete.html';
+          // No invoice, proceed directly
+          const response = await fetch(submitUrl, {
+            method: 'POST',
+            body: JSON.stringify(values),
+            headers: {
+              'Content-Type': 'application/json'
+            },
+          })
+
+          const json = await response.json()
+
+          if (json.error) {
+            alert(`There was an error submitting your application: ${json.error}. Please try again.`);
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Create a Space!';
+          } else {
+            window.location.href = '/signup-complete.html';
+          }
         }
       });
 
